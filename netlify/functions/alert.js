@@ -43,9 +43,7 @@ exports.handler = async (event) => {
     if (raw) message = raw;
   }
   if (!['LOW', 'MID', 'HIGH'].includes(level)) level = levelFrom(message);
-  if (level !== 'HIGH') {
-    return { statusCode: 200, body: 'received, no push' };
-  }
+  
   webpush.setVapidDetails(
     VAPID_SUBJECT || 'awesomezeb@yahoo.com',
     VAPID_PUBLIC,
