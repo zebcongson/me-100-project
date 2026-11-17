@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>U-Lock Alarm</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="U-Lock">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#E9EEF2">
+<style>
+:root {
+  --bg: #E9EEF2; --surface: #FFFFFF; --ink: #12202B; --muted: #55656F; --line: #C9D3DA;
+  --accent: #0A5C8A; --accent-ink: #FFFFFF;
+  --quiet: #2F7D5B; --low: #A86B00; --mid: #C4570F; --high: #C42B2B;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0E1920; --surface: #16252E; --ink: #E8EEF2; --muted: #93A3AE; --line: #2A3B46;
+    --accent: #5CB3E0; --accent-ink: #0E1920;
+    --quiet: #5CC48E; --low: #E3A94A; --mid: #F08A4B; --high: #FF6B6B;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 16px/1.5 ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+main { max-width: 34rem; margin: 0 auto; padding: 20px 18px 56px; }
+h1 { font-size: 1.1rem; margin: 0 0 16px; font-weight: 700; }
+
+.readout {
+  background: var(--surface); border: 1px solid var(--line); border-left: 10px solid var(--quiet);
+  border-radius: 20px; padding: 24px 20px;
+}
+.readout[data-level="LOW"]  { border-left-color: var(--low); }
+.readout[data-level="MID"]  { border-left-color: var(--mid); }
+.readout[data-level="HIGH"] { border-left-color: var(--high); }
+.level {
+  font-size: clamp(3.5rem, 20vw, 5.5rem); font-weight: 800; letter-spacing: -0.04em;
+  line-height: 1; color: var(--quiet);
+}
+.readout[data-level="LOW"]  .level { color: var(--low); }
+.readout[data-level="MID"]  .level { color: var(--mid); }
+.readout[data-level="HIGH"] .level { color: var(--high); }
+.when { color: var(--muted); margin-top: 10px; }
+
+.status { margin: 16px 2px; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+button {
+  font: inherit; font-weight: 600; min-height: 44px; padding: 10px 16px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button:focus-visible, summary:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 3px solid var(--accent); outline-offset: 2px;
+}
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; margin-bottom: 12px; }
+summary { padding: 14px 16px; font-weight: 700; cursor: pointer; min-height: 44px; }
+.panel { padding: 0 16px 16px; }
+.panel ol { padding-left: 1.2rem; margin: 0 0 12px; }
+.panel li { margin-bottom: 6px; }
+label { display: block; font-weight: 600; margin: 10px 0 4px; }
+input, textarea {
+  width: 100%; font: inherit; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+}
+textarea { min-height: 7rem; font-size: 0.8rem; word-break: break-all; }
+#log { list-style: none; margin: 0; padding: 0; }
+#log li { padding: 10px 0; border-top: 1px solid var(--line); }
+#log li:first-child { border-top: 0; }
+#log .lvl { font-weight: 700; margin-right: 6px; }
+#log .lvl[data-level="LOW"] { color: var(--low); }
+#log .lvl[data-level="MID"] { color: var(--mid); }
+#log .lvl[data-level="HIGH"] { color: var(--high); }
+#log time { display: block; color: var(--muted); font-size: 0.85rem; }
+.note { color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>U-Lock Alarm</h1>
+
+  <section class="readout" id="readout" data-level="NONE" aria-live="polite">
+    <div class="level" id="level">Quiet</div>
+    <div class="when" id="when">No alerts yet</div>
+  </section>
+
+  <p class="status" id="status"></p>
+
+  <div class="row">
+    <button class="primary" id="enable">Turn on notifications</button>
+    <button id="sound">Test alarm sound</button>
+  </div>
+
+  <details id="setup" open>
+    <summary>Set up this phone</summary>
+    <div class="panel">
+      <ol>
+        <li>In Safari, tap Share, then Add to Home Screen.</li>
+        <li>Open U-Lock from the new Home Screen icon.</li>
+        <li>Tap Turn on notifications and choose Allow.</li>
+        <li>Copy the text below into the Netlify variable PUSH_SUBSCRIPTION, then redeploy the site.</li>
+      </ol>
+      <label for="sub">Phone subscription</label>
+      <textarea id="sub" readonly placeholder="Appears after you turn on notifications"></textarea>
+      <div class="row" style="margin: 10px 0 0">
+        <button id="copy">Copy subscription</button>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>Alert history</summary>
+    <div class="panel">
+      <ul id="log"></ul>
+      <p class="note" id="logEmpty">Alerts show up here after they arrive.</p>
+      <button id="clear">Clear history</button>
+    </div>
+  </details>
+
+  <details>
+    <summary>Send a test alert</summary>
+    <div class="panel">
+      <p class="note">Uses the same address your ESP32 calls. Enter the secret you saved as ALERT_SECRET.</p>
+      <label for="secret">Alert secret</label>
+      <input id="secret" type="password" autocomplete="off">
+      <label for="testLevel">Level</label>
+      <select id="testLevel" style="width:100%;font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)">
+        <option value="LOW">Low</option>
+        <option value="MID">Mid</option>
+        <option value="HIGH" selected>High</option>
+      </select>
+      <div class="row" style="margin: 12px 0 0">
+        <button id="sendTest">Send test alert</button>
+      </div>
+      <p class="note" id="testResult" aria-live="polite"></p>
+    </div>
+  </details>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const DB = 'ulock';
+const STORE = 'alerts';
+const NAMES = { LOW: 'Low', MID: 'Mid', HIGH: 'High' };
+
+/* ---------- alert history (IndexedDB, shared with the service worker) ---------- */
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function getAlerts() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const q = db.transaction(STORE).objectStore(STORE).getAll();
+    q.onsuccess = () => resolve(q.result.reverse());
+    q.onerror = () => reject(q.error);
+  });
+}
+async function clearAlerts() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+function when(ts) {
+  return new Date(ts).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit', second: '2-digit' });
+}
+async function render() {
+  let list = [];
+  try { list = await getAlerts(); } catch (err) { /* storage unavailable */ }
+  const last = list[0];
+  $('readout').dataset.level = last ? last.level : 'NONE';
+  $('level').textContent = last ? (NAMES[last.level] || last.level) : 'Quiet';
+  $('when').textContent = last ? last.message + ' · ' + when(last.ts) : 'No alerts yet';
+
+  const log = $('log');
+  log.replaceChildren();
+  list.slice(0, 50).forEach((a) => {
+    const li = document.createElement('li');
+    const lvl = document.createElement('span');
+    lvl.className = 'lvl';
+    lvl.dataset.level = a.level;
+    lvl.textContent = NAMES[a.level] || a.level;
+    const msg = document.createElement('span');
+    msg.textContent = a.message;
+    const t = document.createElement('time');
+    t.textContent = when(a.ts);
+    li.append(lvl, msg, t);
+    log.append(li);
+  });
+  $('logEmpty').hidden = list.length > 0;
+}
+
+/* ---------- alarm sound (only plays while the app is open) ---------- */
+let ctx;
+function unlockAudio() {
+  if (!ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) ctx = new AC();
+  }
+  if (ctx && ctx.state === 'suspended') ctx.resume();
+}
+function beep(freq, start, dur) {
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  const t0 = ctx.currentTime + start;
+  o.type = 'square';
+  o.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0.25, t0);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+  o.connect(g).connect(ctx.destination);
+  o.start(t0);
+  o.stop(t0 + dur + 0.02);
+}
+function playAlarm(level) {
+  if (!ctx) return;
+  unlockAudio();
+  if (level === 'LOW') {
+    beep(660, 0, 0.35);
+  } else if (level === 'MID') {
+    [0, 0.3, 0.6].forEach((t) => beep(880, t, 0.22));
+  } else {
+    for (let i = 0; i < 6; i++) { beep(700, i * 0.5, 0.22); beep(1500, i * 0.5 + 0.25, 0.22); }
+  }
+}
+
+/* ---------- push setup ---------- */
+function urlB64ToBytes(b64) {
+  const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+const isIos = /iphone|ipad/i.test(navigator.userAgent);
+const standalone = window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+
+async function showSubscription() {
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if (sub) $('sub').value = JSON.stringify(sub);
+}
+async function refreshStatus() {
+  const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  if (!supported) {
+    $('status').textContent = isIos && !standalone
+      ? 'On iPhone, open this page from the Home Screen icon first: tap Share, then Add to Home Screen.'
+      : 'This browser can’t receive push notifications.';
+    $('enable').disabled = true;
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    $('status').textContent = 'Notifications are on.';
+    showSubscription();
+  } else if (Notification.permission === 'denied') {
+    $('status').textContent = 'Notifications are blocked. Turn them on in Settings, then Notifications, then U-Lock.';
+  } else {
+    $('status').textContent = 'Notifications are off.';
+  }
+}
+async function enable() {
+  unlockAudio();
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { refreshStatus(); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const key = (await (await fetch('/api/public-key')).text()).trim();
+    if (!key) { $('status').textContent = 'The server has no VAPID_PUBLIC variable yet. Add it in Netlify and redeploy.'; return; }
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToBytes(key) });
+    $('sub').value = JSON.stringify(sub);
+    $('status').textContent = 'Notifications are on. Copy the subscription below into Netlify.';
+  } catch (err) {
+    $('status').textContent = 'Could not turn on notifications: ' + err.message;
+  }
+}
+
+/* ---------- wire up ---------- */
+$('enable').addEventListener('click', enable);
+$('sound').addEventListener('click', () => { unlockAudio(); playAlarm($('testLevel').value); });
+$('copy').addEventListener('click', async () => {
+  const text = $('sub').value;
+  if (!text) return;
+  try { await navigator.clipboard.writeText(text); $('copy').textContent = 'Copied'; }
+  catch (err) { $('sub').select(); $('copy').textContent = 'Select and copy manually'; }
+  setTimeout(() => { $('copy').textContent = 'Copy subscription'; }, 2000);
+});
+$('clear').addEventListener('click', async () => { await clearAlerts(); render(); });
+$('sendTest').addEventListener('click', async () => {
+  $('testResult').textContent = 'Sending…';
+  try {
+    const res = await fetch('/api/alert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Alert-Secret': $('secret').value },
+      body: JSON.stringify({ level: $('testLevel').value, message: 'Test alert' }),
+    });
+    $('testResult').textContent = res.ok ? 'Sent. A notification should arrive shortly.' : 'Failed (' + res.status + '): ' + (await res.text());
+  } catch (err) {
+    $('testResult').textContent = 'Could not reach the server: ' + err.message;
+  }
+});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'alert') { render(); playAlarm(event.data.level); }
+  });
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+render();
+refreshStatus();
+</script>
+</body>
+</html>

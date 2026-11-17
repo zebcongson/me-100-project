@@ -1,0 +1,9 @@
+{
+  "name": "ulock-alarm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Web push relay and Home Screen app for the U-lock alarm",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}
