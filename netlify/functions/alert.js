@@ -1,5 +1,6 @@
-// The ESP32 POSTs here when the alarm fires. This sends a push to your phone.
+// The ESP32 POSTs here when the alarm fires. Saves every alert, pushes only HIGH.
 const webpush = require('web-push');
+const { connectLambda, getStore } = require('@netlify/blobs');
 
 function levelFrom(text) {
   if (/HIGH/i.test(text)) return 'HIGH';
@@ -43,9 +44,25 @@ exports.handler = async (event) => {
     if (raw) message = raw;
   }
   if (!['LOW', 'MID', 'HIGH'].includes(level)) level = levelFrom(message);
-  
+
+  // Save every alert so the page can show LOW/MID/HIGH history
+  try {
+    connectLambda(event);
+    const store = getStore('alerts');
+    const recent = (await store.get('recent', { type: 'json' })) || [];
+    recent.unshift({ level, message, ts: Date.now() });
+    await store.setJSON('recent', recent.slice(0, 50));
+  } catch (err) {
+    console.log('Could not save alert:', err.message);
+  }
+
+  // Only HIGH sends a phone push
+  if (level !== 'HIGH') {
+    return { statusCode: 200, body: 'saved, no push' };
+  }
+
   webpush.setVapidDetails(
-    VAPID_SUBJECT || 'awesomezeb@yahoo.com',
+    VAPID_SUBJECT || 'mailto:awesomezeb@yahoo.com',
     VAPID_PUBLIC,
     VAPID_PRIVATE
   );
