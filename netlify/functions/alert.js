@@ -45,6 +45,8 @@ exports.handler = async (event) => {
   }
   if (!['LOW', 'MID', 'HIGH'].includes(level)) level = levelFrom(message);
 
+  console.log('ALERT', level, JSON.stringify(message), 'from', event.headers['user-agent'] || 'unknown');
+
   // Save every alert so the page can show LOW/MID/HIGH history
   try {
     connectLambda(event);
