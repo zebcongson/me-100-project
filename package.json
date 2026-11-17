@@ -4,6 +4,8 @@
   "private": true,
   "description": "Web push relay and Home Screen app for the U-lock alarm",
   "dependencies": {
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "@netlify/blobs": "^8.1.0"
   }
+  
 }
