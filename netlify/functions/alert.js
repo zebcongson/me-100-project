@@ -50,7 +50,7 @@ exports.handler = async (event) => {
   // Save every alert so the page can show LOW/MID/HIGH history
   try {
     connectLambda(event);
-    const store = getStore('alerts');
+    const store = getStore({ name: 'alerts', consistency: 'strong' });
     const recent = (await store.get('recent', { type: 'json' })) || [];
     recent.unshift({ level, message, ts: Date.now() });
     await store.setJSON('recent', recent.slice(0, 50));
