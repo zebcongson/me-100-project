@@ -2,7 +2,7 @@ const { connectLambda, getStore } = require('@netlify/blobs');
 
 exports.handler = async (event) => {
   connectLambda(event);
-  const store = getStore('alerts');
+  const store = const store = getStore({ name: 'alerts', consistency: 'strong' });
   const recent = (await store.get('recent', { type: 'json' })) || [];
   return {
     statusCode: 200,
