@@ -251,4 +251,62 @@ async function refreshStatus() {
   } else if (Notification.permission === 'denied') {
     $('status').textContent = 'Notifications are blocked. Turn them on in Settings, then Notifications, then U-Lock.';
   } else {
-    $('status').textContent =
+    $('status').textContent = 'Notifications are off.';
+  }
+}
+async function enable() {
+  unlockAudio();
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { refreshStatus(); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const key = (await (await fetch('/api/public-key')).text()).trim();
+    if (!key) { $('status').textContent = 'The server has no VAPID_PUBLIC variable yet. Add it in Netlify and redeploy.'; return; }
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToBytes(key) });
+    $('sub').value = JSON.stringify(sub);
+    $('status').textContent = 'Notifications are on. Copy the subscription below into Netlify.';
+  } catch (err) {
+    $('status').textContent = 'Could not turn on notifications: ' + err.message;
+  }
+}
+
+/* ---------- wire up ---------- */
+$('enable').addEventListener('click', enable);
+$('sound').addEventListener('click', () => { unlockAudio(); playAlarm($('testLevel').value); });
+$('copy').addEventListener('click', async () => {
+  const text = $('sub').value;
+  if (!text) return;
+  try { await navigator.clipboard.writeText(text); $('copy').textContent = 'Copied'; }
+  catch (err) { $('sub').select(); $('copy').textContent = 'Select and copy manually'; }
+  setTimeout(() => { $('copy').textContent = 'Copy subscription'; }, 2000);
+});
+$('clear').addEventListener('click', async () => { await clearAlerts(); render(); });
+$('sendTest').addEventListener('click', async () => {
+  $('testResult').textContent = 'Sending…';
+  try {
+    const res = await fetch('/api/alert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Alert-Secret': $('secret').value },
+      body: JSON.stringify({ level: $('testLevel').value, message: 'Test alert' }),
+    });
+    $('testResult').textContent = res.ok ? 'Sent. Only High alerts send a notification.' : 'Failed (' + res.status + '): ' + (await res.text());
+    render();
+  } catch (err) {
+    $('testResult').textContent = 'Could not reach the server: ' + err.message;
+  }
+});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'alert') { render(); playAlarm(event.data.level); }
+  });
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+render();
+setInterval(render, 3000);
+refreshStatus();
+</script>
+</body>
+</html>
