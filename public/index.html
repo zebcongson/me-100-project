@@ -50,6 +50,12 @@ h1 { font-size: 1.1rem; margin: 0 0 16px; font-weight: 700; }
 .readout[data-level="MID"]  .level { color: var(--mid); }
 .readout[data-level="HIGH"] .level { color: var(--high); }
 .when { color: var(--muted); margin-top: 10px; }
+.armline {
+  display: inline-block; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--quiet); border: 1px solid currentColor; border-radius: 999px; padding: 2px 10px; margin-bottom: 12px;
+}
+.readout[data-armed="false"] { border-left-style: dashed; }
+.readout[data-armed="false"] .armline { color: var(--muted); }
 
 .status { margin: 16px 2px; color: var(--muted); }
 .row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
@@ -87,10 +93,16 @@ textarea { min-height: 7rem; font-size: 0.8rem; word-break: break-all; }
 <main>
   <h1>U-Lock Alarm</h1>
 
-  <section class="readout" id="readout" data-level="NONE" aria-live="polite">
+  <section class="readout" id="readout" data-level="NONE" data-armed="true" aria-live="polite">
+    <div class="armline" id="armLine">Armed</div>
     <div class="level" id="level">Quiet</div>
     <div class="when" id="when">No alerts yet</div>
   </section>
+
+  <div class="row" style="margin-top: 14px">
+    <button class="primary" id="armBtn">Disarm</button>
+  </div>
+  <p class="note" id="armResult" aria-live="polite"></p>
 
   <p class="status" id="status"></p>
 
@@ -150,11 +162,53 @@ const $ = (id) => document.getElementById(id);
 const NAMES = { LOW: 'Low', MID: 'Mid', HIGH: 'High' };
 
 /* ---------- alert history (saved on the server, read every few seconds) ---------- */
+const QUIET_AFTER_MS = 5 * 60 * 1000;   // big box goes back to Quiet after 5 minutes
+const POLL_MS = 20000;                  // how often the page checks the server
+let armed = true;
+
 async function getAlerts() {
   const res = await fetch('/.netlify/functions/alerts', { cache: 'no-store' });
+  if (!res.ok) throw new Error('alerts returned ' + res.status);
+  const header = res.headers.get('x-armed');
+  if (header !== null) armed = header !== 'false';
   const all = await res.json();
   const clearedAt = Number(localStorage.getItem('clearedAt') || 0);
   return all.filter((a) => a.ts > clearedAt);
+}
+function showArmed() {
+  $('readout').dataset.armed = String(armed);
+  $('armLine').textContent = armed ? 'Armed' : 'Disarmed · no notifications';
+  $('armBtn').textContent = armed ? 'Disarm' : 'Arm';
+}
+async function setArmed(want) {
+  let secret = localStorage.getItem('alertSecret') || $('secret').value;
+  if (!secret) secret = (prompt('Enter your alert secret (ALERT_SECRET)') || '').trim();
+  if (!secret) { $('armResult').textContent = 'Cancelled: the alert secret is needed to arm or disarm.'; return; }
+  $('armBtn').disabled = true;
+  $('armResult').textContent = want ? 'Arming…' : 'Disarming…';
+  try {
+    const res = await fetch('/api/arm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Alert-Secret': secret },
+      body: JSON.stringify({ armed: want }),
+    });
+    if (res.status === 401) {
+      localStorage.removeItem('alertSecret');
+      $('armResult').textContent = 'Wrong secret. Try again.';
+    } else if (!res.ok) {
+      $('armResult').textContent = 'Failed (' + res.status + '): ' + (await res.text());
+    } else {
+      localStorage.setItem('alertSecret', secret);
+      armed = want;
+      $('armResult').textContent = want
+        ? 'Armed. The buzzer comes back within about 15 seconds.'
+        : 'Disarmed. The buzzer mutes within about 15 seconds. Alerts still show here.';
+    }
+  } catch (err) {
+    $('armResult').textContent = 'Could not reach the server: ' + err.message;
+  }
+  $('armBtn').disabled = false;
+  showArmed();
 }
 async function clearAlerts() {
   localStorage.setItem('clearedAt', String(Date.now()));
@@ -165,8 +219,9 @@ function when(ts) {
 async function render() {
   let list = [];
   try { list = await getAlerts(); } catch (err) { /* server unavailable */ }
+  showArmed();
   const last = list[0];
-  const live = last && Date.now() - last.ts < 30000;   // back to Quiet after 30 s
+  const live = last && Date.now() - last.ts < QUIET_AFTER_MS;
   $('readout').dataset.level = live ? last.level : 'NONE';
   $('level').textContent = live ? (NAMES[last.level] || last.level) : 'Quiet';
   $('when').textContent = last ? last.message + ' · ' + when(last.ts) : 'No alerts yet';
@@ -281,6 +336,7 @@ $('copy').addEventListener('click', async () => {
   catch (err) { $('sub').select(); $('copy').textContent = 'Select and copy manually'; }
   setTimeout(() => { $('copy').textContent = 'Copy subscription'; }, 2000);
 });
+$('armBtn').addEventListener('click', () => setArmed(!armed));
 $('clear').addEventListener('click', async () => { await clearAlerts(); render(); });
 $('sendTest').addEventListener('click', async () => {
   $('testResult').textContent = 'Sending…';
@@ -304,8 +360,10 @@ if ('serviceWorker' in navigator) {
   });
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+window.addEventListener('focus', render);
+window.addEventListener('pageshow', render);
 render();
-setInterval(render, 3000);
+setInterval(render, POLL_MS);
 refreshStatus();
 </script>
 </body>

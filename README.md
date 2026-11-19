@@ -3,6 +3,8 @@
 Files:
 - `public/` : the web app (index.html), service worker (sw.js), manifest, icons
 - `netlify/functions/alert.js` : the ESP32 calls this; it sends the push to your phone
+- `netlify/functions/alerts.js` : the app reads the saved alert list from here
+- `netlify/functions/arm.js` : the Disarm / Arm button. While disarmed, alerts still show in the app but no push is sent, and the receiver tells the sender to mute its buzzer
 - `netlify/functions/public-key.js` : gives the app the public push key
 - `netlify/functions/keys.js` : TEMPORARY, makes your push keys. Delete it after step 3.
 - `package.json`, `netlify.toml` : tell Netlify how to build

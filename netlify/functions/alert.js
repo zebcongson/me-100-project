@@ -47,20 +47,33 @@ exports.handler = async (event) => {
 
   console.log('ALERT', level, JSON.stringify(message), 'from', event.headers['user-agent'] || 'unknown');
 
-  // Save every alert so the page can show LOW/MID/HIGH history
+  // Save every alert so the page can show LOW/MID/HIGH history, and read the armed state.
+  let armed = true;
   try {
     connectLambda(event);
     const store = getStore({ name: 'alerts', consistency: 'strong' });
     const recent = (await store.get('recent', { type: 'json' })) || [];
     recent.unshift({ level, message, ts: Date.now() });
     await store.setJSON('recent', recent.slice(0, 50));
+    const state = await store.get('armed', { type: 'json' });
+    armed = !state || state.armed !== false;
   } catch (err) {
     console.log('Could not save alert:', err.message);
   }
 
-  // Only HIGH sends a phone push
+  // The receiver reads "armed" from this reply and passes it on to the sender.
+  const reply = (statusCode, result) => ({
+    statusCode,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ armed, result }),
+  });
+
+  // Only HIGH sends a phone push, and only while armed
   if (level !== 'HIGH') {
-    return { statusCode: 200, body: 'saved, no push' };
+    return reply(200, 'saved, no push');
+  }
+  if (!armed) {
+    return reply(200, 'disarmed, no push');
   }
 
   webpush.setVapidDetails(
@@ -75,11 +88,8 @@ exports.handler = async (event) => {
       JSON.stringify({ title: 'U-lock alarm', message, level }),
       { TTL: 60, urgency: 'high' }
     );
-    return { statusCode: 200, body: 'sent' };
+    return reply(200, 'sent');
   } catch (err) {
-    return {
-      statusCode: err.statusCode || 500,
-      body: 'Push failed: ' + (err.body || err.message),
-    };
+    return reply(err.statusCode || 500, 'Push failed: ' + (err.body || err.message));
   }
 };
