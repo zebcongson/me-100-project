@@ -51,7 +51,7 @@ exports.handler = async (event) => {
   let armed = true;
   try {
     connectLambda(event);
-    const store = getStore({ name: 'alerts', consistency: 'strong' });
+    const store = getStore('alerts');
     const recent = (await store.get('recent', { type: 'json' })) || [];
     recent.unshift({ level, message, ts: Date.now() });
     await store.setJSON('recent', recent.slice(0, 50));

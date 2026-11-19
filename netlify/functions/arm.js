@@ -21,7 +21,7 @@ exports.handler = async (event) => {
 
   try {
     connectLambda(event);
-    const store = getStore({ name: 'alerts', consistency: 'strong' });
+    const store = getStore('alerts');
 
     if (event.httpMethod === 'GET') {
       const saved = await store.get('armed', { type: 'json' });
