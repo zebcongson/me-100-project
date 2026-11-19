@@ -165,12 +165,13 @@ const NAMES = { LOW: 'Low', MID: 'Mid', HIGH: 'High' };
 const QUIET_AFTER_MS = 5 * 60 * 1000;   // big box goes back to Quiet after 5 minutes
 const POLL_MS = 20000;                  // how often the page checks the server
 let armed = true;
+let armedHoldUntil = 0;   // storage can lag a minute, so trust a fresh button press for a while
 
 async function getAlerts() {
   const res = await fetch('/.netlify/functions/alerts', { cache: 'no-store' });
   if (!res.ok) throw new Error('alerts returned ' + res.status);
   const header = res.headers.get('x-armed');
-  if (header !== null) armed = header !== 'false';
+  if (header !== null && Date.now() > armedHoldUntil) armed = header !== 'false';
   const all = await res.json();
   const clearedAt = Number(localStorage.getItem('clearedAt') || 0);
   return all.filter((a) => a.ts > clearedAt);
@@ -181,25 +182,19 @@ function showArmed() {
   $('armBtn').textContent = armed ? 'Disarm' : 'Arm';
 }
 async function setArmed(want) {
-  let secret = localStorage.getItem('alertSecret') || $('secret').value;
-  if (!secret) secret = (prompt('Enter your alert secret (ALERT_SECRET)') || '').trim();
-  if (!secret) { $('armResult').textContent = 'Cancelled: the alert secret is needed to arm or disarm.'; return; }
   $('armBtn').disabled = true;
   $('armResult').textContent = want ? 'Arming…' : 'Disarming…';
   try {
     const res = await fetch('/api/arm', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Alert-Secret': secret },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ armed: want }),
     });
-    if (res.status === 401) {
-      localStorage.removeItem('alertSecret');
-      $('armResult').textContent = 'Wrong secret. Try again.';
-    } else if (!res.ok) {
+    if (!res.ok) {
       $('armResult').textContent = 'Failed (' + res.status + '): ' + (await res.text());
     } else {
-      localStorage.setItem('alertSecret', secret);
       armed = want;
+      armedHoldUntil = Date.now() + 60000;
       $('armResult').textContent = want
         ? 'Armed. The buzzer comes back within about 15 seconds.'
         : 'Disarmed. The buzzer mutes within about 15 seconds. Alerts still show here.';

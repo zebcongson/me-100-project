@@ -1,8 +1,9 @@
 // Arm / disarm the alarm.
 //   GET  /api/arm  -> {"armed": true|false}   (the receiver polls this)
-//   POST /api/arm  -> body {"armed": true|false}, needs the x-alert-secret header
+//   POST /api/arm  -> body {"armed": true|false}
 // While disarmed, alerts are still saved and shown, but no phone push is sent,
 // and the receiver tells the sender to mute its buzzer.
+// No secret is needed here, so anyone with the site address can disarm it.
 const { connectLambda, getStore } = require('@netlify/blobs');
 
 const HEADERS = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
@@ -12,16 +13,9 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers: HEADERS, body: JSON.stringify({ error: 'Use GET or POST' }) };
   }
 
-  if (event.httpMethod === 'POST') {
-    const secret = event.headers['x-alert-secret'] || '';
-    if (!process.env.ALERT_SECRET || secret !== process.env.ALERT_SECRET) {
-      return { statusCode: 401, headers: HEADERS, body: JSON.stringify({ error: 'Wrong or missing secret' }) };
-    }
-  }
-
   try {
     connectLambda(event);
-    const store = getStore({ name: 'alerts', consistency: 'strong' });
+    const store = getStore('alerts');
 
     if (event.httpMethod === 'GET') {
       const saved = await store.get('armed', { type: 'json' });
